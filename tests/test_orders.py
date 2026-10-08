@@ -39,7 +39,34 @@ class FakeCollection:
         for document in self.documents:
             match = True
             for k, v in query.items():
-                if document.get(k) != v:
+                if k == "$or":
+                    or_ok = False
+                    for subq in v:
+                        sub_ok = True
+                        for sk, sv in subq.items():
+                            if isinstance(sv, dict) and "$regex" in sv:
+                                doc_val = str(document.get(sk, "")).lower()
+                                if sv["$regex"].lower() not in doc_val:
+                                    sub_ok = False
+                                    break
+                            elif document.get(sk) != sv:
+                                sub_ok = False
+                                break
+                        if sub_ok:
+                            or_ok = True
+                            break
+                    if not or_ok:
+                        match = False
+                        break
+                elif isinstance(v, dict):
+                    doc_val = document.get(k)
+                    if "$gte" in v and (doc_val is None or doc_val < v["$gte"]):
+                        match = False
+                        break
+                    if "$lte" in v and (doc_val is None or doc_val > v["$lte"]):
+                        match = False
+                        break
+                elif document.get(k) != v:
                     match = False
                     break
             if match:
@@ -47,9 +74,32 @@ class FakeCollection:
 
         class Cursor:
             def __init__(self, items):
-                self.items = items
+                self.items = list(items)
 
-            def sort(self, field, direction):
+            def sort(self, field_or_list, direction=None):
+                if isinstance(field_or_list, list) and len(field_or_list) > 0:
+                    field, direction = field_or_list[0]
+                else:
+                    field = field_or_list
+                reverse = (direction == -1)
+                def sort_key(doc):
+                    val = doc.get(field)
+                    if val is None:
+                        return (0, "")
+                    if isinstance(val, (int, float)):
+                        return (1, val)
+                    if hasattr(val, "isoformat"):
+                        return (2, val.isoformat())
+                    return (3, str(val))
+                self.items.sort(key=sort_key, reverse=reverse)
+                return self
+
+            def skip(self, n):
+                self.items = self.items[n:]
+                return self
+
+            def limit(self, n):
+                self.items = self.items[:n]
                 return self
 
             async def to_list(self, length=None):

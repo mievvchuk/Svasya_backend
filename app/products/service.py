@@ -16,7 +16,7 @@ VARIANTS_COLLECTION = "product_variants"
 
 
 def _get_db(db: Optional[AsyncIOMotorDatabase] = None) -> AsyncIOMotorDatabase:
-    actual_db = db or database.db
+    actual_db = db if db is not None else database.db
     if actual_db is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -25,14 +25,60 @@ def _get_db(db: Optional[AsyncIOMotorDatabase] = None) -> AsyncIOMotorDatabase:
     return actual_db
 
 
-async def get_available_products(db: Optional[AsyncIOMotorDatabase] = None) -> list[dict]:
+async def get_available_products(
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    sort_by: Optional[str] = "newest",
+    limit: Optional[int] = None,
+    skip: int = 0,
+    db: Optional[AsyncIOMotorDatabase] = None,
+) -> list[dict]:
     db = _get_db(db)
     products_collection = db[PRODUCTS_COLLECTION]
     variants_collection = db[VARIANTS_COLLECTION]
 
-    products = await products_collection.find(
-        {"is_available": True}
-    ).sort("created_at", -1).to_list(length=None)
+    query: dict = {"is_available": True}
+
+    # 1. Search by name or description
+    if search and search.strip():
+        s = search.strip()
+        query["$or"] = [
+            {"name": {"$regex": s, "$options": "i"}},
+            {"description": {"$regex": s, "$options": "i"}},
+        ]
+
+    # 2. Filter by category
+    if category:
+        cat_val = category.value if hasattr(category, "value") else str(category)
+        query["category"] = cat_val
+
+    # 3. Filter by price range
+    price_filter = {}
+    if min_price is not None:
+        price_filter["$gte"] = float(min_price)
+    if max_price is not None:
+        price_filter["$lte"] = float(max_price)
+    if price_filter:
+        query["price"] = price_filter
+
+    # 4. Sorting
+    sort_mapping = {
+        "newest": [("created_at", -1)],
+        "price_asc": [("price", 1)],
+        "price_desc": [("price", -1)],
+        "name": [("name", 1)],
+    }
+    sort_order = sort_mapping.get(sort_by, [("created_at", -1)])
+
+    cursor = products_collection.find(query).sort(sort_order)
+    if skip > 0:
+        cursor = cursor.skip(skip)
+    if limit is not None and limit > 0:
+        cursor = cursor.limit(limit)
+
+    products = await cursor.to_list(length=None)
 
     result = []
 
