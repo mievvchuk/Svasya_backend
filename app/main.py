@@ -7,6 +7,7 @@ from app import database
 from app.config import settings
 from app.orders.router import router as orders_router
 from app.products.router import router as products_router
+
 from app.users.router import router as users_router
 from app.users.service import seed_default_users
 
