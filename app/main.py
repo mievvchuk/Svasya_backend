@@ -57,3 +57,9 @@ async def root():
         "message": "SVAS API is running",
         "docs": "/docs",
     }
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+

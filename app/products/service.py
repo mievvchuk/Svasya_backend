@@ -35,12 +35,6 @@ def _image_url(image_reference: str | None) -> str | None:
 
 async def get_available_products(
     search: Optional[str] = None,
-    category: Optional[str] = None,
-    min_price: Optional[float] = None,
-    max_price: Optional[float] = None,
-    sort_by: Optional[str] = "newest",
-    limit: Optional[int] = None,
-    skip: int = 0,
     db: Optional[AsyncIOMotorDatabase] = None,
 ) -> list[dict]:
     db = _get_db(db)
@@ -49,7 +43,7 @@ async def get_available_products(
 
     query: dict = {"is_available": True}
 
-    # 1. Search by name or description
+    # Search by name or description
     if search and search.strip():
         s = search.strip()
         query["$or"] = [
@@ -57,35 +51,7 @@ async def get_available_products(
             {"description": {"$regex": s, "$options": "i"}},
         ]
 
-    # 2. Filter by category
-    if category:
-        cat_val = category.value if hasattr(category, "value") else str(category)
-        query["category"] = cat_val
-
-    # 3. Filter by price range
-    price_filter = {}
-    if min_price is not None:
-        price_filter["$gte"] = float(min_price)
-    if max_price is not None:
-        price_filter["$lte"] = float(max_price)
-    if price_filter:
-        query["price"] = price_filter
-
-    # 4. Sorting
-    sort_mapping = {
-        "newest": [("created_at", -1)],
-        "price_asc": [("price", 1)],
-        "price_desc": [("price", -1)],
-        "name": [("name", 1)],
-    }
-    sort_order = sort_mapping.get(sort_by, [("created_at", -1)])
-
-    cursor = products_collection.find(query).sort(sort_order)
-    if skip > 0:
-        cursor = cursor.skip(skip)
-    if limit is not None and limit > 0:
-        cursor = cursor.limit(limit)
-
+    cursor = products_collection.find(query)
     products = await cursor.to_list(length=None)
 
     result = []

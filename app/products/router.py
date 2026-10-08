@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Optional
 
 from bson import ObjectId
 from fastapi import (
@@ -60,31 +60,17 @@ def get_db():
 @router.get(
     "",
     response_model=list[ProductListResponse],
-    summary="Get available products with search, category/price filters, and sorting",
+    summary="Get available products (with optional search)",
 )
 async def get_products(
     search: Optional[str] = Query(None, description="Search keyword in name or description"),
-    category: Optional[ProductCategory] = Query(None, description="Filter by category (e.g. tshirt, hoodie)"),
-    min_price: Optional[float] = Query(None, ge=0, description="Minimum price filter"),
-    max_price: Optional[float] = Query(None, ge=0, description="Maximum price filter"),
-    sort_by: Optional[Literal["newest", "price_asc", "price_desc", "name"]] = Query(
-        "newest", description="Sorting option: newest, price_asc, price_desc, name"
-    ),
-    limit: Optional[int] = Query(None, ge=1, le=100, description="Maximum items to return"),
-    skip: int = Query(0, ge=0, description="Items to skip (pagination offset)"),
     db=Depends(get_db),
 ):
     """
-    Get all available products for the catalog with optional search and filters.
+    Get all available products for the catalog with optional search.
     """
     return await get_available_products(
         search=search,
-        category=category,
-        min_price=min_price,
-        max_price=max_price,
-        sort_by=sort_by,
-        limit=limit,
-        skip=skip,
         db=db,
     )
 

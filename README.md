@@ -126,3 +126,37 @@ uvicorn app.main:app --reload
 ```powershell
 python -m unittest discover tests
 ```
+
+---
+
+## 🌐 Деплой на Render (Render.com)
+
+Проєкт повністю налаштовано для швидкого безкоштовного деплою на **Render**.
+
+### Варіант 1: Через Blueprint (Автоматично)
+1. У панелі [Render Dashboard](https://dashboard.render.com/) натисніть **New +** -> **Blueprint**.
+2. Підключіть репозиторій `mievvchuk/Svasya_backend`.
+3. Render автоматично прочитає файл `render.yaml`.
+4. Введіть змінну оточення `MONGODB_URL` (ваше підключення до MongoDB Atlas).
+5. Натисніть **Apply**.
+
+### Варіант 2: Вручну (New Web Service)
+1. У Render виберіть **New +** -> **Web Service**.
+2. Підключіть репозиторій `Svasya_backend`.
+3. Задайте налаштування:
+   - **Environment:** `Python`
+   - **Region:** `Frankfurt (EU Central)`
+   - **Branch:** `develop` (або `main`)
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. Додайте **Environment Variables**:
+   - `PYTHON_VERSION`: `3.11.9`
+   - `MONGODB_URL`: `mongodb+srv://...` (ваша адреса бази Atlas)
+   - `MONGODB_DATABASE`: `svas`
+   - `JWT_SECRET_KEY`: (випадковий секретний ключ)
+   - `CORS_ORIGINS`: `*` (або адреса вашого фронтенду)
+5. **Health Check Path:** `/health`
+6. Натисніть **Create Web Service**.
+
+Після завершення білду ваш бекенд буде доступний онлайн з автоматичним SSL-сертифікатом (HTTPS) та Swagger UI за адресою `https://<ваша-назва>.onrender.com/docs`!
+
