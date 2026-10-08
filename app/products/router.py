@@ -1,3 +1,6 @@
+from typing import Literal, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
@@ -7,7 +10,7 @@ import app.database as database
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app import database
-from app.common.enums import UserRole
+from app.common.enums import ProductCategory, UserRole
 from app.products.schemas import (
     ProductCreate,
     ProductDetailResponse,
@@ -60,13 +63,33 @@ def get_db():
 @router.get(
     "",
     response_model=list[ProductListResponse],
-    summary="Get all available products (catalog)",
+    summary="Get available products with search, category/price filters, and sorting",
 )
-async def get_products(db=Depends(get_db)):
+async def get_products(
+    search: Optional[str] = Query(None, description="Search keyword in name or description"),
+    category: Optional[ProductCategory] = Query(None, description="Filter by category (e.g. tshirt, hoodie)"),
+    min_price: Optional[float] = Query(None, ge=0, description="Minimum price filter"),
+    max_price: Optional[float] = Query(None, ge=0, description="Maximum price filter"),
+    sort_by: Optional[Literal["newest", "price_asc", "price_desc", "name"]] = Query(
+        "newest", description="Sorting option: newest, price_asc, price_desc, name"
+    ),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Maximum items to return"),
+    skip: int = Query(0, ge=0, description="Items to skip (pagination offset)"),
+    db=Depends(get_db),
+):
     """
-    Get all available products for the catalog.
+    Get all available products for the catalog with optional search and filters.
     """
-    return await get_available_products(db)
+    return await get_available_products(
+        search=search,
+        category=category,
+        min_price=min_price,
+        max_price=max_price,
+        sort_by=sort_by,
+        limit=limit,
+        skip=skip,
+        db=db,
+    )
 
 
 @router.get(
