@@ -1,20 +1,46 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 
-from app.products.schemas import Product
+from app.products.schemas import (
+    ProductDetailResponse,
+    ProductListResponse,
+)
+from app.products.service import (
+    get_available_products,
+    get_product_by_id,
+)
 
 
-router = APIRouter(prefix="/products", tags=["products"])
+router = APIRouter(
+    prefix="/api/products",
+    tags=["Products"],
+)
 
 
-@router.get("", response_model=list[Product], responses={501: {"description": "Not implemented"}})
-def get_products() -> list[Product]:
-    raise HTTPException(status_code=501, detail="Products API is not implemented yet")
+@router.get(
+    "",
+    response_model=list[ProductListResponse],
+)
+async def get_products():
+    """
+    Get all available products.
+    """
+    return await get_available_products()
 
 
 @router.get(
     "/{product_id}",
-    response_model=Product,
-    responses={501: {"description": "Not implemented"}},
+    response_model=ProductDetailResponse,
 )
-def get_product(product_id: str) -> Product:
-    raise HTTPException(status_code=501, detail="Products API is not implemented yet")
+async def get_product(product_id: str):
+    """
+    Get product details with all variants.
+    """
+    product = await get_product_by_id(product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
+
+    return product
