@@ -25,7 +25,7 @@ from app.users.auth import (
 
 
 router = APIRouter(
-    prefix="/api/orders",
+    prefix="/orders",
     tags=["orders"],
 )
 
