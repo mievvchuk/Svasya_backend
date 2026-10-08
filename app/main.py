@@ -40,9 +40,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Primary endpoints with /api prefix
+app.include_router(products_router, prefix="/api")
+app.include_router(orders_router, prefix="/api")
+app.include_router(users_router)
+
+# Compatibility endpoints without /api prefix (supports direct /orders and /products)
 app.include_router(products_router)
 app.include_router(orders_router)
-app.include_router(users_router)
 
 
 @app.get("/")

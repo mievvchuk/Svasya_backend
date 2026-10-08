@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app import database
 from app.common.enums import UserRole
@@ -10,11 +12,15 @@ from app.users.schemas import (
     UserLoginRequest,
     UserRegisterRequest,
     UserResponse,
+    UserUpdateAdminRequest,
 )
 from app.users.service import (
     authenticate_user,
     create_user,
+    delete_user_by_admin,
+    get_all_users,
     get_contact_managers,
+    update_user_by_admin,
 )
 
 
@@ -92,11 +98,29 @@ async def list_contact_managers(
     return await get_contact_managers(db)
 
 
+# =========================================================================
+# ADMIN USER MANAGEMENT
+# =========================================================================
+
+@router.get(
+    "/users",
+    response_model=list[UserResponse],
+    summary="[Admin] Get list of all users with optional filters",
+)
+async def list_all_users(
+    role: Optional[UserRole] = Query(None, description="Filter by role: admin, manager, customer"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    db=Depends(get_db),
+    _admin: dict = Depends(require_roles(UserRole.ADMIN)),
+):
+    return await get_all_users(db, role=role, is_active=is_active)
+
+
 @router.post(
     "/users/staff",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new staff member (Admin or Manager). Admin role only.",
+    summary="[Admin] Create a new staff member (Admin or Manager)",
 )
 async def create_staff(
     staff_data: UserCreateStaffRequest,
@@ -104,3 +128,29 @@ async def create_staff(
     _admin: dict = Depends(require_roles(UserRole.ADMIN)),
 ):
     return await create_user(db, staff_data, role=staff_data.role)
+
+
+@router.patch(
+    "/users/{user_id}",
+    response_model=UserResponse,
+    summary="[Admin] Update user role, active status, name, or phone",
+)
+async def update_user(
+    user_id: str,
+    update_data: UserUpdateAdminRequest,
+    db=Depends(get_db),
+    _admin: dict = Depends(require_roles(UserRole.ADMIN)),
+):
+    return await update_user_by_admin(db, user_id, update_data)
+
+
+@router.delete(
+    "/users/{user_id}",
+    summary="[Admin] Delete a user account",
+)
+async def delete_user(
+    user_id: str,
+    db=Depends(get_db),
+    _admin: dict = Depends(require_roles(UserRole.ADMIN)),
+):
+    return await delete_user_by_admin(db, user_id)

@@ -45,3 +45,10 @@ class ManagerContactResponse(BaseModel):
     name: str
     email: str
     phone: str
+
+
+class UserUpdateAdminRequest(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None

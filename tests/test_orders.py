@@ -85,6 +85,27 @@ class FakeCollection:
             return SimpleNamespace(modified_count=1, upserted_id=new_doc["_id"])
         return SimpleNamespace(modified_count=1 if doc else 0)
 
+    async def delete_one(self, filter_query):
+        doc = await self.find_one(filter_query)
+        if doc and doc in self.documents:
+            self.documents.remove(doc)
+            return SimpleNamespace(deleted_count=1)
+        return SimpleNamespace(deleted_count=0)
+
+    async def delete_many(self, filter_query):
+        to_remove = []
+        for doc in self.documents:
+            match = True
+            for k, v in filter_query.items():
+                if doc.get(k) != v:
+                    match = False
+                    break
+            if match:
+                to_remove.append(doc)
+        for doc in to_remove:
+            self.documents.remove(doc)
+        return SimpleNamespace(deleted_count=len(to_remove))
+
 
 class FakeDatabase:
     def __init__(self):

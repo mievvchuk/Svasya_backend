@@ -68,6 +68,12 @@ async def create_order(
     for variant_id, total_quantity in variant_totals.items():
         variant = await variants_collection.find_one({"id": variant_id})
         if variant is None:
+            try:
+                variant = await variants_collection.find_one({"_id": ObjectId(variant_id)})
+            except (InvalidId, TypeError):
+                variant = None
+
+        if variant is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Variant '{variant_id}' not found",
@@ -98,8 +104,10 @@ async def create_order(
 
     # 3. Decrement stock for variants in the database
     for variant_id, total_quantity in variant_totals.items():
+        variant = variants_map[variant_id]
+        filter_doc = {"_id": variant["_id"]} if "_id" in variant else {"id": variant["id"]}
         await variants_collection.update_one(
-            {"id": variant_id},
+            filter_doc,
             {"$inc": {"stock": -total_quantity}},
         )
 
