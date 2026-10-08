@@ -7,6 +7,7 @@ from app.common.enums import ProductCategory
 
 class ProductVariant(BaseModel):
     id: str
+    product_id: str | None = None
     color: str
     size: str | None
     image_url: str
