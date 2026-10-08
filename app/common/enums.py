@@ -32,3 +32,17 @@ class ProductColor(str, Enum):
     FOREST_GREEN = "forest_green"
     OLIVE = "olive"
     BEIGE = "beige"
+
+
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    MANAGER = "manager"
+    CUSTOMER = "customer"
+
+
+class OrderStatus(str, Enum):
+    NEW = "new"
+    CONTACTED = "contacted"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"

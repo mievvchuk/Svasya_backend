@@ -80,6 +80,7 @@ async def get_product_by_id(product_id: str) -> Optional[dict]:
         "variants": [
             {
                 "id": variant["id"],
+                "product_id": variant.get("product_id", product_id),
                 "color": variant["color"],
                 "size": variant.get("size"),
                 "image_url": variant["image_url"],
