@@ -34,6 +34,12 @@ pip install -r requirements.txt
 Створіть `.env` на основі `.env.example` і за потреби змініть параметри
 підключення до MongoDB.
 
+Заповніть MongoDB початковими товарами та варіантами:
+
+```powershell
+python -m app.products.seed
+```
+
 ## Запуск
 
 ```powershell
