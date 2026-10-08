@@ -1,7 +1,7 @@
 from typing import Optional
 
 from app import database
-
+from app.database import db
 
 PRODUCTS_COLLECTION = "products"
 VARIANTS_COLLECTION = "product_variants"
@@ -88,3 +88,15 @@ async def get_product_by_id(product_id: str) -> Optional[dict]:
             for variant in variants
         ],
     }
+async def update_product_image_in_db(product_id: str, image_url: str) -> bool:
+    """
+    Оновлює поле preview_image для конкретного товару.
+    """
+    # УВАГА: Якщо твій id у базі - це ObjectId, то зміни запит на: 
+    # {"_id": ObjectId(product_id)} (і додай `from bson import ObjectId`)
+    
+    result = await db.products.update_one(
+        {"id": product_id}, 
+        {"$set": {"preview_image": image_url}}
+    )
+    return result.modified_count > 0

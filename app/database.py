@@ -1,17 +1,17 @@
-from motor.motor_asyncio import AsyncIOMotorClient
-
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from app.config import settings
-
 
 client: AsyncIOMotorClient | None = None
 db = None
+fs: AsyncIOMotorGridFSBucket | None = None
 
 
 async def connect_to_mongo():
-    global client, db
+    global client, db, fs
 
     client = AsyncIOMotorClient(settings.mongodb_url)
     db = client[settings.mongodb_database]
+    fs = AsyncIOMotorGridFSBucket(db)
 
     await client.admin.command("ping")
 

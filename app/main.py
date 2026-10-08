@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from app.database import connect_to_mongo, close_mongo_connection
 from app.products.router import router as products_router
-
+from app.orders.router import router as orders_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,4 +31,3 @@ async def root():
     return {
         "message": "API is running"
     }
-

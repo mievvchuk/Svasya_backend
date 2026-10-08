@@ -6,3 +6,4 @@ email-validator
 python-dotenv
 motor
 pydantic_settings
+python-multipart
