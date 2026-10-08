@@ -9,7 +9,7 @@ class ProductVariant(BaseModel):
     id: str
     color: str
     size: str | None
-    image_url: str
+    image_url: str | None
     stock: int = Field(ge=0)
 
 
