@@ -2,9 +2,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-import app.database as database
-
-from bson import ObjectId
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import HTTPException, status
@@ -18,17 +15,6 @@ PRODUCTS_COLLECTION = "products"
 VARIANTS_COLLECTION = "product_variants"
 
 
-def _image_url(image_reference: str | None) -> str | None:
-    if not image_reference:
-        return None
-    if ObjectId.is_valid(image_reference):
-        return f"/api/products/image/{image_reference}"
-    return image_reference
-
-
-async def get_available_products() -> list[dict]:
-    if database.db is None:
-        raise RuntimeError("MongoDB is not connected.")
 def _get_db(db: Optional[AsyncIOMotorDatabase] = None) -> AsyncIOMotorDatabase:
     actual_db = db if db is not None else database.db
     if actual_db is None:
@@ -37,6 +23,14 @@ def _get_db(db: Optional[AsyncIOMotorDatabase] = None) -> AsyncIOMotorDatabase:
             detail="MongoDB is not connected",
         )
     return actual_db
+
+
+def _image_url(image_reference: str | None) -> str | None:
+    if not image_reference:
+        return None
+    if ObjectId.is_valid(image_reference):
+        return f"/api/products/image/{image_reference}"
+    return image_reference
 
 
 async def get_available_products(
@@ -102,27 +96,12 @@ async def get_available_products(
             preview_variant = await variants_collection.find_one(
                 {
                     "product_id": product["id"],
-                    "image_url": {"$exists": True, "$nin": [None, ""]},
+                    "image_url": {"$ne": None},
                 },
                 sort=[("_id", 1)],
             )
             if preview_variant:
                 preview_image = _image_url(preview_variant.get("image_url"))
-        product_id = product["id"]
-
-        preview_variant = await variants_collection.find_one(
-            {
-                "product_id": product_id,
-                "image_url": {"$ne": None},
-            },
-            sort=[("_id", 1)],
-        )
-
-        preview_image = None
-        if preview_variant:
-            preview_image = preview_variant.get("image_url")
-        elif "preview_image" in product:
-            preview_image = product.get("preview_image")
 
         result.append(
             {
@@ -171,6 +150,7 @@ async def get_product_by_id(
         "price": product["price"],
         "is_available": product["is_available"],
         "created_at": product["created_at"],
+        "preview_image": _image_url(product.get("preview_image")),
         "variants": [
             {
                 "id": variant["id"],
@@ -189,22 +169,23 @@ async def update_product_image_in_db(
     product_id: str,
     image_id: str,
     variant_id: str | None = None,
+    db: Optional[AsyncIOMotorDatabase] = None,
 ) -> bool:
-    if database.db is None:
-        raise RuntimeError("MongoDB is not connected.")
-
+    db = _get_db(db)
     if variant_id:
-        result = await database.db[VARIANTS_COLLECTION].update_one(
+        result = await db[VARIANTS_COLLECTION].update_one(
             {"product_id": product_id, "id": variant_id},
             {"$set": {"image_url": image_id}},
         )
     else:
-        result = await database.db[PRODUCTS_COLLECTION].update_one(
+        result = await db[PRODUCTS_COLLECTION].update_one(
             {"id": product_id},
             {"$set": {"preview_image": image_id}},
         )
 
     return result.matched_count > 0
+
+
 # =========================================================================
 # ADMIN OPERATIONS
 # =========================================================================
@@ -239,8 +220,9 @@ async def create_product(
         "created_at": datetime.now(timezone.utc),
     }
 
-    result = await products_collection.insert_one(product_doc)
-    product_doc["_id"] = result.inserted_id
+    await products_collection.insert_one(product_doc)
+    product_doc.pop("_id", None)
+    product_doc["preview_image"] = _image_url(product_doc.get("preview_image"))
     product_doc["variants"] = []
     return product_doc
 
@@ -343,6 +325,8 @@ async def create_variant(
     }
 
     await variants_collection.insert_one(variant_doc)
+    variant_doc.pop("_id", None)
+    variant_doc["image_url"] = _image_url(variant_doc.get("image_url"))
     return variant_doc
 
 

@@ -1,13 +1,17 @@
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
-from fastapi.responses import StreamingResponse
 from bson import ObjectId
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
+from fastapi.responses import StreamingResponse
 from gridfs.errors import NoFile
-
-import app.database as database
-from fastapi import APIRouter, Depends, HTTPException, status
 
 from app import database
 from app.common.enums import ProductCategory, UserRole
@@ -16,6 +20,7 @@ from app.products.schemas import (
     ProductDetailResponse,
     ProductListResponse,
     ProductUpdate,
+    ProductVariant,
     VariantCreate,
     VariantStockUpdate,
 )
@@ -26,8 +31,8 @@ from app.products.service import (
     delete_variant,
     get_available_products,
     get_product_by_id,
-    update_product_image_in_db,
     update_product,
+    update_product_image_in_db,
     update_variant_stock,
 )
 from app.users.auth import require_roles
@@ -39,14 +44,6 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=list[ProductListResponse])
-async def get_products():
-    return await get_available_products()
-
-
-@router.get("/{product_id}", response_model=ProductDetailResponse)
-async def get_product(product_id: str):
-    product = await get_product_by_id(product_id)
 def get_db():
     if database.db is None:
         raise HTTPException(
@@ -93,21 +90,10 @@ async def get_products(
 
 
 @router.get(
-    "/{product_id}",
-    response_model=ProductDetailResponse,
-    summary="Get product details with all its variants",
+    "/image/{image_id}",
+    response_class=StreamingResponse,
+    summary="Stream an uploaded product image from GridFS",
 )
-async def get_product(product_id: str, db=Depends(get_db)):
-    """
-    Get product details with all variants (colors, sizes, stock).
-    """
-    product = await get_product_by_id(product_id, db)
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product
-
-
-@router.get("/image/{image_id}", response_class=StreamingResponse)
 async def get_product_image(image_id: str):
     if not ObjectId.is_valid(image_id):
         raise HTTPException(status_code=400, detail="Invalid image ID")
@@ -127,16 +113,47 @@ async def get_product_image(image_id: str):
                 break
             yield chunk
 
-    content_type = grid_out.metadata.get("content_type", "image/jpeg") if grid_out.metadata else "image/jpeg"
+    content_type = (
+        grid_out.metadata.get("content_type", "image/jpeg")
+        if grid_out.metadata
+        else "image/jpeg"
+    )
 
     return StreamingResponse(stream_generator(), media_type=content_type)
 
 
-@router.post("/{product_id}/image", status_code=status.HTTP_200_OK)
+@router.get(
+    "/{product_id}",
+    response_model=ProductDetailResponse,
+    summary="Get product details with all its variants",
+)
+async def get_product(product_id: str, db=Depends(get_db)):
+    """
+    Get product details with all variants (colors, sizes, stock).
+    """
+    product = await get_product_by_id(product_id, db)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
+    return product
+
+
+# =========================================================================
+# IMAGES & ADMIN MANAGEMENT
+# =========================================================================
+
+@router.post(
+    "/{product_id}/image",
+    status_code=status.HTTP_200_OK,
+    summary="Upload product image to GridFS and link to product or variant",
+)
 async def upload_product_image(
     product_id: str,
     file: UploadFile = File(...),
     variant_id: str | None = None,
+    _admin: dict = Depends(require_roles(UserRole.ADMIN)),
 ):
     content_type = file.content_type or ""
     if not content_type.startswith("image/"):
@@ -177,12 +194,7 @@ async def upload_product_image(
         "image_url": image_url,
         "target": f"variant {variant_id}" if variant_id else "main product",
     }
-    return product
 
-
-# =========================================================================
-# ADMIN CATALOG & INVENTORY MANAGEMENT
-# =========================================================================
 
 @router.post(
     "",
@@ -226,6 +238,7 @@ async def delete_product_endpoint(
 
 @router.post(
     "/{product_id}/variants",
+    response_model=ProductVariant,
     status_code=status.HTTP_201_CREATED,
     summary="[Admin] Add a new variant (color, size, stock) to a product",
 )
