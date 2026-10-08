@@ -1,6 +1,7 @@
+import asyncio
 from datetime import datetime, timezone
 
-from app.database import db
+from app import database
 
 
 PRODUCTS_COLLECTION = "products"
@@ -236,8 +237,11 @@ PRODUCT_VARIANTS = [
 
 
 async def seed_products():
-    products_collection = db[PRODUCTS_COLLECTION]
-    variants_collection = db[VARIANTS_COLLECTION]
+    if database.db is None:
+        raise RuntimeError("MongoDB is not connected. Call connect_to_mongo() first.")
+
+    products_collection = database.db[PRODUCTS_COLLECTION]
+    variants_collection = database.db[VARIANTS_COLLECTION]
 
     for product in PRODUCTS:
         await products_collection.update_one(
@@ -258,3 +262,15 @@ async def seed_products():
         f"{len(PRODUCTS)} products, "
         f"{len(PRODUCT_VARIANTS)} variants"
     )
+
+if __name__ == "__main__":
+    from app.database import connect_to_mongo, close_mongo_connection
+
+    async def main() -> None:
+        try:
+            await connect_to_mongo()
+            await seed_products()
+        finally:
+            await close_mongo_connection()
+
+    asyncio.run(main())
