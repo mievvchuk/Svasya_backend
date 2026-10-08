@@ -1,162 +1,281 @@
-# SVAS Shop API
+# 🛍️ SVAS Merch Shop API
 
-Сучасний асинхронний backend для магазину мерчу SVAS на базі **FastAPI** та **MongoDB (Motor)**.
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas%20%2F%20Motor-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-E92063?style=flat&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+[![Render](https://img.shields.io/badge/Deploy-Render-46E3B7?style=flat&logo=render&logoColor=white)](https://render.com/)
+[![Tests](https://img.shields.io/badge/Tests-Passing%20(15%2F15)-brightgreen?style=flat)](https://github.com/mievvchuk/Svasya_backend)
 
-## 🛠 Технологічний стек
-
-- **Мова:** Python 3.11+
-- **Фреймворк:** FastAPI
-- **База даних:** MongoDB (асинхронний драйвер `motor`, `pymongo`)
-- **Валідація та налаштування:** Pydantic v2, `pydantic-settings`, `email-validator`
-- **Безпека та авторизація:** `bcrypt`, `pyjwt` (JWT Bearer токени)
-- **CORS:** Налаштовано для безперешкодної інтеграції з фронтендом
+Сучасний, високопродуктивний асинхронний REST API бекенд для магазину фірмового мерчу **SVAS**. Побудований на базі **FastAPI**, неблокуючого драйвера **Motor (MongoDB)**, **GridFS** для збереження медіафайлів та **JWT (RBAC)** авторизації.
 
 ---
 
-## 🚀 Швидкий старт
+## 📑 Зміст
 
-### 1. Клонування та перехід у гілку
+- [✨ Основні можливості](#-основні-можливості)
+- [🛠 Технологічний стек](#-технологічний-стек)
+- [🗄 Структура бази даних](#-структура-бази-даних-mongodb)
+- [👥 Ролі та облікові записи](#-ролі-та-облікові-записи)
+- [🚀 Швидкий старт (Локальний запуск)](#-швидкий-старт-локальний-запуск)
+- [📡 Довідник API (Endpoints)](#-довідник-api-endpoints)
+- [⚙️ Змінні середовища](#️-змінні-середовища-env)
+- [🌐 Деплой на Render](#-деплой-на-render-rendercom)
+- [🧪 Тестування](#-тестування)
 
-```powershell
-git checkout feature/users-and-roles
+---
+
+## ✨ Основні можливості
+
+- **📦 Каталог мерчу:** Отримання товарів з preview-зображеннями, повним описом та списком варіантів (кольори, розміри, залишки).
+- **🔍 Швидкий пошук:** Миттєвий регістронезалежний пошук товарів за назвою та описом (`/api/products?search=...`).
+- **🖼️ Збереження та стрімінг зображень:** Завантаження файлів прямо в MongoDB GridFS із потоковою віддачею (`StreamingResponse`).
+- **🛒 Оформлення замовлень:**
+  - Автоматична валідація наявності товару.
+  - Атомарне списання залишків (`stock`) на складі при створенні замовлення.
+  - Захист від дублювання позицій в одному замовленні.
+  - Підтримка замовлень як зареєстрованими клієнтами, так і гостями.
+- **🔐 Рольова модель доступу (RBAC):**
+  - Безпечні паролі (`bcrypt`) та JWT Bearer токени.
+  - Три рівні доступу: `admin`, `manager`, `customer`.
+- **🤝 Підтримка клієнтів:** Публічний ендпоінт для зв'язку з закріпленими менеджерами підтримки.
+- **⚙️ Повна адмін-панель:** Керування каталогом (створення/редагування/видалення товарів та варіантів), поповнення складу партіями (`add`) чи перезапис залишків (`set`), керування користувачами.
+- **🚀 Хмарна готовність:** Готові конфігурації `render.yaml` та `Procfile` для деплою в один клік на Render.com.
+
+---
+
+## 🛠 Технологічний стек
+
+| Компонент | Технологія | Призначення |
+| :--- | :--- | :--- |
+| **Backend Framework** | [FastAPI](https://fastapi.tiangolo.com/) | Швидкий асинхронний веб-фреймворк з автогенерацією OpenAPI/Swagger |
+| **Server** | [Uvicorn](https://www.uvicorn.org/) | Асинхронний ASGI-сервер стандарту Lightning |
+| **Database** | [MongoDB Atlas](https://www.mongodb.com/) / [Motor](https://motor.readthedocs.io/) | Документоорієнтована NoSQL БД + асинхронний драйвер |
+| **File Storage** | [GridFS](https://www.mongodb.com/docs/manual/core/gridfs/) | Збереження зображень товарів та варіантів у MongoDB |
+| **Validation** | [Pydantic v2](https://docs.pydantic.dev/) | Сувора валідація схем даних та налаштувань |
+| **Security** | `bcrypt`, `PyJWT` | Хешування паролів та видача безпечних JSON Web Tokens |
+| **CORS** | `CORSMiddleware` | Гнучке налаштування для взаємодії з будь-яким фронтендом |
+
+---
+
+## 🗄 Структура бази даних (MongoDB)
+
+База даних `svas` складається з 5 взаємопов'язаних колекцій:
+
+```text
+svas
+├── products           # Базові картки товарів (назва, опис, категорія, ціна, статус)
+├── product_variants   # Варіанти товарів (колір, розмір, залишок stock, посилання на фото)
+├── orders             # Замовлення покупців (контакти, статус, загальна сума, список items)
+├── users              # Облікові записи (пошта, хеш пароля, телефон, роль, статус)
+└── fs.files / chunks  # GridFS бінарні чанки завантажених фотографій мерчу
 ```
-
-### 2. Створення та активація віртуального середовища
-
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-### 3. Встановлення залежностей
-
-```powershell
-pip install -r requirements.txt
-```
-
-### 4. Налаштування змінних середовища
-
-Створіть файл `.env` у корені проєкту (або перевірте наявний):
-
-```env
-MONGODB_URL=mongodb+srv://...
-MONGODB_DATABASE=svas
-```
-
-### 5. Початкове заповнення товарами (Seed)
-
-```powershell
-python -m app.products.seed
-```
-
-### 6. Запуск сервера
-
-```powershell
-uvicorn app.main:app --reload
-```
-
-Після запуску документація Swagger UI доступна за адресою:
-👉 **http://127.0.0.1:8000/docs**
 
 ---
 
 ## 👥 Ролі та облікові записи
 
-Система підтримує 3 ролі користувачів:
-1. **`admin`** — повний доступ (керування товарами, призначення персоналу, перегляд замовлень).
-2. **`manager`** — служба підтримки та обробки замовлень (зв'язок із клієнтами, зміна статусів замовлень, закріплення за замовленнями).
-3. **`customer`** — зареєстрований покупець (створення замовлень, перегляд власної історії). Замовлення також можна оформлювати як **гість** (без реєстрації).
+| Роль | Опис прав |
+| :--- | :--- |
+| **`admin`** | Повний контроль: створення/видалення товарів, коригування складу, призначення ролей користувачам. |
+| **`manager`** | Робота із замовленнями: зміна статусів (`new` -> `contacted` -> `processing` -> `completed`), закріплення за замовленням, контакти з клієнтами. |
+| **`customer`** | Зареєстрований покупець: перегляд каталогу, створення замовлень, перегляд своєї історії. |
+| **Гість** | Анонімний користувач: перегляд товарів, оформлення швидкого замовлення без авторизації. |
 
-### 🔑 Тестові акаунти (створюються автоматично при запуску):
-- **Адміністратор:**
-  - Email: `admin@svasya.ua`
-  - Пароль: `Admin123!`
-- **Менеджер для зв'язку:**
-  - Email: `manager@svasya.ua`
-  - Пароль: `Manager123!`
+### 🔑 Тестові акаунти за замовчуванням:
+> [!NOTE]
+> Створюються автоматично при першому запуску додатку (якщо відсутні в базі).
 
----
-
-## 🗄 Структура бази даних (MongoDB Collections)
-
-- **`products`** — типи товарів (`id`, `name`, `description`, `category`, `price`, `is_available`, `created_at`).
-- **`product_variants`** — конкретні варіанти (`id`, `product_id`, `color`, `size`, `image_url`, `stock`).
-- **`orders`** — замовлення клієнтів (`id`, `customer_name`, `phone`, `email`, `total_price`, `status`, `created_at`, `user_id`, `assigned_manager_id`, `items[]`).
-- **`users`** — користувачі системи (`id`, `email`, `hashed_password`, `name`, `phone`, `role`, `is_active`, `created_at`).
-
----
-
-## 📡 Основні API Endpoints
-
-### 1. Каталог товарів (Backend 1)
-- `GET /api/products` — список доступних товарів з preview-зображенням.
-- `GET /api/products/{id}` — детальна інформація про товар з усіма доступними варіантами.
-
-### 2. Замовлення (Backend 2)
-- `POST /api/orders` — створення замовлення (з автоматичною перевіркою та **списанням залишків `stock`**, перевіркою доступності товару, захистом від дублів).
-- `GET /api/orders` — перегляд замовлень (покупець бачить свої замовлення; менеджер/адмін бачать усі).
-- `GET /api/orders/{id}` — деталі конкретного замовлення.
-- `PATCH /api/orders/{id}/status` — зміна статусу (`new`, `contacted`, `processing`, `completed`, `cancelled`) — *Manager/Admin*.
-- `PATCH /api/orders/{id}/assign` — закріплення менеджера для зв'язку — *Manager/Admin*.
-
-### 3. Користувачі та зв'язок
-- `POST /api/auth/register` — реєстрація нового покупця.
-- `POST /api/auth/login` — вхід та отримання JWT Bearer токена.
-- `GET /api/auth/me` — інформація про поточного користувача.
-- `GET /api/users/managers` — **публічний список менеджерів для зв'язку** (ім'я, телефон, пошта).
-- `POST /api/users/staff` — створення адміном нового менеджера чи адміна.
-
-### 4. Адмін-панель (Тільки для ролі `admin`)
-- `POST /api/products` — створення нового товару.
-- `PATCH /api/products/{id}` — оновлення ціни, опису або перемикання доступності (`is_available`).
-- `DELETE /api/products/{id}` — видалення товару та його варіантів.
-- `POST /api/products/{id}/variants` — додавання нового варіанта товару (колір, розмір, картинка, залишок).
-- `PATCH /api/products/variants/{variant_id}/stock` — **поповнення наявності / коригування залишків на складі** (режими `set` для встановлення або `add` для додавання нової партії).
-- `DELETE /api/products/variants/{variant_id}` — видалення варіанта товару.
-- `GET /api/users` — список усіх користувачів із фільтрацією за роллю (`customer`, `manager`, `admin`) та статусом.
-- `PATCH /api/users/{id}` — зміна ролі користувача або деактивація акаунта.
-- `DELETE /api/users/{id}` — видалення користувача.
+- **👑 Головний Адміністратор:**
+  - **Email:** `admin@svasya.ua`
+  - **Пароль:** `Admin123!`
+- **👔 Менеджер підтримки:**
+  - **Email:** `manager@svasya.ua`
+  - **Пароль:** `Manager123!`
+- **🛍️ Тестовий покупець:**
+  - **Email:** `real_client@gmail.com`
+  - **Пароль:** `SecurePassword123!`
 
 ---
 
-## 🧪 Тестування
+## 🚀 Швидкий старт (Локальний запуск)
 
-Для запуску всіх автоматизованих тестів виконайте:
+### 1. Клонування репозиторію
 
-```powershell
-python -m unittest discover tests
+```bash
+git clone https://github.com/mievvchuk/Svasya_backend.git
+cd Svasya_backend
 ```
+
+### 2. Налаштування віртуального середовища
+
+**Windows (PowerShell):**
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+**macOS / Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Встановлення залежностей
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Налаштування `.env`
+
+Створіть файл `.env` у корені проєкту (за зразком `.env.example`):
+
+```env
+MONGODB_URL=mongodb+srv://<username>:<password>@cluster.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DATABASE=svas
+JWT_SECRET_KEY=svasya-super-secret-jwt-key-change-in-production
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
+CORS_ORIGINS=*
+```
+
+### 5. Початкове наповнення товарами (Seed Data)
+
+Для заповнення бази первинним асортиментом мерчу SVAS (футболки, худі, кепки, шопери, кружки з варіантами та залишками):
+
+```bash
+python -m app.products.seed
+```
+
+### 6. Запуск сервера розробки
+
+```bash
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Після запуску відкрийте браузер:
+- 📖 **Інтерактивна документація Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- 📑 **Альтернативна документація ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+- 🩺 **Перевірка працездатності (Health Check):** [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+
+---
+
+## 📡 Довідник API (Endpoints)
+
+Усі маршрути доступні як із префіксом `/api`, так і напряму.
+
+### 🔐 1. Автентифікація (`/api/auth`)
+| Метод | Шлях | Доступ | Опис |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/register` | Публічний | Реєстрація нового покупця (`customer`) |
+| `POST` | `/api/auth/login` | Публічний | Вхід за email/паролем та отримання Bearer JWT |
+| `GET` | `/api/auth/me` | Авторизований | Дані поточного авторизованого користувача |
+
+### 👕 2. Каталог товарів та пошук (`/api/products`)
+| Метод | Шлях | Доступ | Опис |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/products` | Публічний | Список активних товарів з preview-картинками |
+| `GET` | `/api/products?search={text}` | Публічний | Пошук товарів за назвою та описом |
+| `GET` | `/api/products/{product_id}` | Публічний | Детальна інформація про товар та всі його варіанти |
+| `GET` | `/api/products/image/{image_id}` | Публічний | Стрімінг зображення з GridFS |
+
+### 🛍️ 3. Замовлення (`/api/orders`)
+| Метод | Шлях | Доступ | Опис |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/orders` | Публічний / Клієнт | Створення замовлення зі списанням залишків `stock` |
+| `GET` | `/api/orders` | Авторизований | Перегляд замовлень (клієнт — свої; менеджер/адмін — усі) |
+| `GET` | `/api/orders/{order_id}` | Авторизований | Деталі конкретного замовлення |
+| `PATCH`| `/api/orders/{order_id}/status` | `manager`, `admin` | Зміна статусу (`new`, `contacted`, `processing`, `completed`, `cancelled`) |
+| `PATCH`| `/api/orders/{order_id}/assign` | `manager`, `admin` | Закріплення менеджера за замовленням |
+
+### 👥 4. Користувачі та підтримка (`/api/users`)
+| Метод | Шлях | Доступ | Опис |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/users/managers` | Публічний | Список активних менеджерів для зв'язку з клієнтами |
+| `GET` | `/api/users` | `admin` | Список усіх зареєстрованих користувачів |
+| `POST` | `/api/users/staff` | `admin` | Створення співробітника (`manager` або `admin`) |
+| `PATCH`| `/api/users/{user_id}` | `admin` | Зміна ролі або блокування/активація облікового запису |
+| `DELETE`| `/api/users/{user_id}` | `admin` | Видалення користувача |
+
+### ⚙️ 5. Адміністрування каталогу та складу (`/api/products`)
+| Метод | Шлях | Доступ | Опис |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/products` | `admin` | Додавання нового товару в каталог |
+| `PATCH`| `/api/products/{product_id}` | `admin` | Редагування назви, опису, ціни, наявності |
+| `DELETE`| `/api/products/{product_id}` | `admin` | Видалення товару разом з усіма варіантами |
+| `POST` | `/api/products/{product_id}/variants` | `admin` | Додавання варіанта товару (колір, розмір, залишок) |
+| `PATCH`| `/api/products/variants/{variant_id}/stock` | `admin` | Поповнення залишку: `add` (додати) або `set` (встановити) |
+| `DELETE`| `/api/products/variants/{variant_id}` | `admin` | Видалення варіанта товару |
+| `POST` | `/api/products/{product_id}/image` | `admin` | Завантаження зображення в GridFS для товару чи варіанта |
+
+---
+
+## ⚙️ Змінні середовища (.env)
+
+| Змінна | Тип | За замовчуванням | Опис |
+| :--- | :---: | :---: | :--- |
+| `MONGODB_URL` | `str` | *Обов'язкова* | Повний рядок підключення до MongoDB (Atlas або локальна) |
+| `MONGODB_DATABASE` | `str` | `svas` | Назва робочої бази даних |
+| `JWT_SECRET_KEY` | `str` | `svasya-secret-jwt-key...` | Секретний ключ для підпису JWT токенів |
+| `JWT_ALGORITHM` | `str` | `HS256` | Алгоритм шифрування токенів |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `int` | `1440` (24 год) | Час життя токена до повторної авторизації |
+| `CORS_ORIGINS` | `str` / `list` | `*` | Дозволені адреси фронтенду (наприклад, `http://localhost:3000,https://svasya.ua`) |
 
 ---
 
 ## 🌐 Деплой на Render (Render.com)
 
-Проєкт повністю налаштовано для швидкого безкоштовного деплою на **Render**.
+Проєкт містить готові конфігураційні файли `render.yaml` та `Procfile`.
 
-### Варіант 1: Через Blueprint (Автоматично)
-1. У панелі [Render Dashboard](https://dashboard.render.com/) натисніть **New +** -> **Blueprint**.
-2. Підключіть репозиторій `mievvchuk/Svasya_backend`.
-3. Render автоматично прочитає файл `render.yaml`.
-4. Введіть змінну оточення `MONGODB_URL` (ваше підключення до MongoDB Atlas).
-5. Натисніть **Apply**.
+### Варіант А: Через Blueprint (Рекомендовано — 2 хвилини)
+1. Увійдіть у [Render Dashboard](https://dashboard.render.com/) під своїм GitHub акаунтом.
+2. Натисніть **New +** ➡️ **Blueprint**.
+3. Оберіть репозиторій **`mievvchuk/Svasya_backend`**.
+4. Render автоматично застосує налаштування з `render.yaml`.
+5. У формі введіть значення для `MONGODB_URL`.
+6. Натисніть **Apply**.
 
-### Варіант 2: Вручну (New Web Service)
-1. У Render виберіть **New +** -> **Web Service**.
+### Варіант Б: Вручну як Web Service
+1. Натисніть **New +** ➡️ **Web Service**.
 2. Підключіть репозиторій `Svasya_backend`.
-3. Задайте налаштування:
+3. Заповніть параметри:
    - **Environment:** `Python`
    - **Region:** `Frankfurt (EU Central)`
-   - **Branch:** `develop` (або `main`)
+   - **Branch:** `main` (або `develop`)
    - **Build Command:** `pip install -r requirements.txt`
    - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Plan:** `Free`
 4. Додайте **Environment Variables**:
    - `PYTHON_VERSION`: `3.11.9`
-   - `MONGODB_URL`: `mongodb+srv://...` (ваша адреса бази Atlas)
+   - `MONGODB_URL`: *ваш рядок підключення Atlas*
    - `MONGODB_DATABASE`: `svas`
-   - `JWT_SECRET_KEY`: (випадковий секретний ключ)
-   - `CORS_ORIGINS`: `*` (або адреса вашого фронтенду)
-5. **Health Check Path:** `/health`
+   - `JWT_SECRET_KEY`: *довільний надійний секретний ключ*
+   - `CORS_ORIGINS`: `*`
+5. Вкажіть **Health Check Path:** `/health`.
 6. Натисніть **Create Web Service**.
 
-Після завершення білду ваш бекенд буде доступний онлайн з автоматичним SSL-сертифікатом (HTTPS) та Swagger UI за адресою `https://<ваша-назва>.onrender.com/docs`!
+---
 
+## 🧪 Тестування
+
+Для проєкту реалізовано повний набір модульних тестів (каталог, пошук, списання залишків, валідація, ролі та адміністрування):
+
+```bash
+python -m unittest discover tests
+```
+
+Результат виконання:
+```text
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 3.4s
+
+OK
+```
+
+---
+
+## 📄 Ліцензія
+
+Цей проєкт створено для магазину **SVAS**. Всі права захищено.
