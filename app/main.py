@@ -23,6 +23,7 @@ app = FastAPI(
 
 
 app.include_router(products_router)
+app.include_router(orders_router)
 
 
 @app.get("/")
@@ -30,3 +31,4 @@ async def root():
     return {
         "message": "API is running"
     }
+
