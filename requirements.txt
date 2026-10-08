@@ -4,3 +4,5 @@ pymongo
 pydantic
 email-validator
 python-dotenv
+motor
+pydantic_settings
