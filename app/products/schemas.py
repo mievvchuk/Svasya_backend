@@ -11,7 +11,7 @@ class ProductVariant(BaseModel):
     product_id: str | None = None
     color: str
     size: str | None
-    image_url: str
+    image_url: str | None
     stock: int = Field(ge=0)
 
 
@@ -36,6 +36,7 @@ class ProductDetailResponse(BaseModel):
     variants: list[ProductVariant]
 
 
+Product = ProductDetailResponse
 Product = ProductDetailResponse
 
 
